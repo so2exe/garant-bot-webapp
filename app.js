@@ -4,31 +4,65 @@
  */
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ИНИЦИАЛИЗАЦИЯ TELEGRAM WEBAPP
+// ИНИЦИАЛИЗАЦИЯ (работает и в браузере, и в Telegram)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const tg = window.Telegram.WebApp;
+let tg;
 
-// Разворачиваем на весь экран
+try {
+    tg = window.Telegram?.WebApp;
+} catch(e) {
+    tg = null;
+}
+
+// Заглушка для браузера (чтобы сайт открывался на компе)
+if (!tg) {
+    tg = {
+        expand: () => {},
+        enableClosingConfirmation: () => {},
+        initDataUnsafe: {
+            user: {
+                id: 12345,
+                first_name: "Тест",
+                username: "test_user",
+                last_name: "",
+                photo_url: ""
+            }
+        },
+        themeParams: {},
+        setHeaderColor: () => {},
+        showPopup: (options, callback) => {
+            alert(options.message);
+            if (callback) callback('ok');
+        },
+        showAlert: (message) => alert(message),
+        sendData: (data) => console.log('Данные для бота:', data),
+        HapticFeedback: {
+            impactOccurred: () => {},
+            notificationOccurred: () => {}
+        },
+        onEvent: () => {}
+    };
+    console.log('⚠️ Режим браузера (функции Telegram неактивны)');
+}
+
+// Разворачиваем приложение
 tg.expand();
-
-// Подтверждение при закрытии
 tg.enableClosingConfirmation();
 
 // Получаем тему Telegram
-const theme = tg.themeParams;
-const isDark = theme.bg_color ? parseInt(theme.bg_color.replace('#', ''), 16) < 0x888888 : true;
+const theme = tg.themeParams || {};
 
 // Данные пользователя
-const initData = tg.initDataUnsafe;
-const user = initData?.user || {};
+const initData = tg.initDataUnsafe || {};
+const user = initData.user || {};
 const userId = user.id || 0;
 const userName = user.first_name || 'Пользователь';
 const userUsername = user.username || 'user';
 const userLastName = user.last_name || '';
 
 // Устанавливаем цвет верхней панели
-tg.setHeaderColor('#0A0A0F');
+try { tg.setHeaderColor('#0A0A0F'); } catch(e) {}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -48,10 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRating();
     setupPhotoUpload();
     updateOnline();
-
+    
     // Регулярное обновление онлайна
     setInterval(updateOnline, 15000);
-
+    
     console.log('🌋 Garant Bot Mini App загружен');
     console.log('👤 Пользователь:', userName, '@' + userUsername);
 });
@@ -62,8 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initNavigation() {
     const navBtns = document.querySelectorAll('.nav-btn');
-    const screens = document.querySelectorAll('.screen');
-
+    
     navBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const screenId = btn.dataset.screen;
@@ -77,18 +110,20 @@ function navigateTo(screenId) {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.screen === screenId);
     });
-
+    
     // Обновляем активный экран
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.toggle('active', screen.id === screenId);
     });
-
+    
     currentScreen = screenId;
-
-    // Haptic feedback
-    if (tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('light');
-    }
+    
+    // Haptic feedback (только в Telegram)
+    try {
+        if (tg.HapticFeedback) {
+            tg.HapticFeedback.impactOccurred('light');
+        }
+    } catch(e) {}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -98,61 +133,49 @@ function navigateTo(screenId) {
 function setupPhotoUpload() {
     const uploadArea = document.getElementById('photoUpload');
     const photoInput = document.getElementById('photoInput');
-    const placeholder = uploadArea.querySelector('.photo-placeholder');
-
+    const placeholder = uploadArea?.querySelector('.photo-placeholder');
+    
+    if (!uploadArea || !photoInput) return;
+    
     uploadArea.addEventListener('click', () => {
-        // Показываем выбор: камера или галерея
-        tg.showPopup({
-            title: '📸 Загрузить фото',
-            message: 'Выберите источник',
-            buttons: [
-                { type: 'default', text: '📷 Камера', id: 'camera' },
-                { type: 'default', text: '🖼 Галерея', id: 'gallery' },
-                { type: 'cancel', text: '❌ Отмена' }
-            ]
-        }, (btnId) => {
-            if (btnId === 'gallery') {
-                photoInput.click();
-            } else if (btnId === 'camera') {
-                photoInput.setAttribute('capture', 'environment');
-                photoInput.click();
-                photoInput.removeAttribute('capture');
-            }
-        });
+        try {
+            tg.showPopup({
+                title: '📸 Загрузить фото',
+                message: 'Выберите источник',
+                buttons: [
+                    { type: 'default', text: '📷 Камера', id: 'camera' },
+                    { type: 'default', text: '🖼 Галерея', id: 'gallery' },
+                    { type: 'cancel', text: '❌ Отмена' }
+                ]
+            }, (btnId) => {
+                if (btnId === 'gallery') {
+                    photoInput.click();
+                } else if (btnId === 'camera') {
+                    photoInput.setAttribute('capture', 'environment');
+                    photoInput.click();
+                    photoInput.removeAttribute('capture');
+                }
+            });
+        } catch(e) {
+            // В браузере просто открываем выбор файла
+            photoInput.click();
+        }
     });
-
+    
     photoInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = (event) => {
                 uploadedPhoto = event.target.result;
-                placeholder.innerHTML = `
-                    <img src="${uploadedPhoto}" alt="Фото товара" style="max-width: 100%; max-height: 200px; border-radius: 12px;">
-                    <p style="color: #34C759;">✅ Фото загружено!</p>
-                `;
+                if (placeholder) {
+                    placeholder.innerHTML = `
+                        <img src="${uploadedPhoto}" alt="Фото" style="max-width: 100%; max-height: 200px; border-radius: 12px;">
+                        <p style="color: #34C759;">✅ Фото загружено!</p>
+                    `;
+                }
             };
             reader.readAsDataURL(file);
-        }
-    });
-
-    // Drag & Drop
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.style.borderColor = '#FF6B35';
-    });
-
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.style.borderColor = 'rgba(255,255,255,0.2)';
-    });
-
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.style.borderColor = 'rgba(255,255,255,0.2)';
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) {
-            photoInput.files = e.dataTransfer.files;
-            photoInput.dispatchEvent(new Event('change'));
         }
     });
 }
@@ -162,19 +185,22 @@ function setupPhotoUpload() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function loadProfile() {
-    document.getElementById('userName').textContent = userName + ' ' + userLastName;
-    document.getElementById('userTag').textContent = '@' + userUsername;
-
-    const avatar = document.getElementById('userAvatar');
-    avatar.textContent = userName.charAt(0).toUpperCase();
-
-    // Загружаем данные из Telegram WebApp
-    if (user.photo_url) {
-        avatar.innerHTML = `<img src="${user.photo_url}" alt="Аватар" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    const nameEl = document.getElementById('userName');
+    const tagEl = document.getElementById('userTag');
+    const avatarEl = document.getElementById('userAvatar');
+    
+    if (nameEl) nameEl.textContent = userName + ' ' + userLastName;
+    if (tagEl) tagEl.textContent = '@' + userUsername;
+    
+    if (avatarEl) {
+        if (user.photo_url) {
+            avatarEl.innerHTML = `<img src="${user.photo_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        } else {
+            avatarEl.textContent = (userName || 'U').charAt(0).toUpperCase();
+        }
     }
-
-    // Здесь должен быть запрос к боту через sendData
-    // Пока заглушка
+    
+    // Заглушка данных профиля
     updateProfileDisplay({
         rating: 4.2,
         successful_deals: 127,
@@ -183,55 +209,56 @@ function loadProfile() {
         balance_stars: 12450,
         balance_rub: 0
     });
-
+    
     loadUserDeals();
 }
 
 function updateProfileDisplay(data) {
-    // Обновляем рейтинг
     updateRatingDisplay(data.rating);
-
-    // Обновляем статистику
-    document.getElementById('successDeals').textContent = data.successful_deals;
-    document.getElementById('failedDeals').textContent = data.failed_deals;
-    document.getElementById('totalDeals').textContent = data.total_deals;
-
-    // Обновляем баланс
-    document.getElementById('balance').textContent =
-        `${data.balance_stars.toLocaleString()} ⭐ | ${data.balance_rub.toLocaleString()} ₽`;
+    
+    const successEl = document.getElementById('successDeals');
+    const failedEl = document.getElementById('failedDeals');
+    const totalEl = document.getElementById('totalDeals');
+    const balanceEl = document.getElementById('balance');
+    
+    if (successEl) successEl.textContent = data.successful_deals;
+    if (failedEl) failedEl.textContent = data.failed_deals;
+    if (totalEl) totalEl.textContent = data.total_deals;
+    if (balanceEl) balanceEl.textContent = `${data.balance_stars.toLocaleString()} ⭐ | ${data.balance_rub.toLocaleString()} ₽`;
 }
 
 function updateRatingDisplay(rating) {
+    const starsEl = document.getElementById('ratingStars');
+    const valueEl = document.getElementById('ratingValue');
+    
+    if (!starsEl || !valueEl) return;
+    
     const fullStars = Math.floor(rating);
     const hasHalfStar = (rating - fullStars) >= 0.5;
     const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-
+    
     let starsHTML = '⭐'.repeat(fullStars);
     if (hasHalfStar) starsHTML += '✨';
     starsHTML += '☆'.repeat(emptyStars);
-
-    document.getElementById('ratingStars').textContent = starsHTML;
-    document.getElementById('ratingValue').textContent = rating.toFixed(1) + ' / 5.0';
-
-    // Анимация звёзд
-    const starsElement = document.getElementById('ratingStars');
-    starsElement.style.transform = 'scale(1.1)';
-    setTimeout(() => { starsElement.style.transform = 'scale(1)'; }, 200);
+    
+    starsEl.textContent = starsHTML;
+    valueEl.textContent = rating.toFixed(1) + ' / 5.0';
 }
 
 function loadUserDeals() {
-    // Здесь должен быть запрос к боту
+    const dealsList = document.getElementById('dealsList');
+    const allMyDeals = document.getElementById('allMyDeals');
+    
     const deals = [
         { title: 'iPhone 15 Pro Max', status: 'completed', price: '45 000 ₽', emoji: '✅', date: '15.02.2024' },
         { title: 'Telegram Premium 1 год', status: 'processing', price: '500 ⭐', emoji: '⏳', date: '20.02.2024' },
         { title: 'Дизайн Telegram канала', status: 'cancelled', price: '2 000 ₽', emoji: '❌', date: '10.02.2024' },
     ];
-
-    const dealsList = document.getElementById('dealsList');
-    let html = '<h3>📊 Мои последние сделки</h3>';
-
+    
+    let html = '';
+    
     if (deals.length === 0) {
-        html += '<div class="deal-item-empty">У вас пока нет сделок</div>';
+        html = '<div class="deal-item-empty">У вас пока нет сделок</div>';
     } else {
         deals.forEach(deal => {
             html += `
@@ -246,11 +273,9 @@ function loadUserDeals() {
             `;
         });
     }
-
-    dealsList.innerHTML = html;
-
-    // Также заполняем экран "Мои сделки"
-    document.getElementById('allMyDeals').innerHTML = html;
+    
+    if (dealsList) dealsList.innerHTML = html;
+    if (allMyDeals) allMyDeals.innerHTML = html;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -258,7 +283,9 @@ function loadUserDeals() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function loadRating() {
-    // Здесь должен быть запрос к боту
+    const container = document.getElementById('topSellers');
+    if (!container) return;
+    
     const sellers = [
         { name: 'Alex', username: 'seller1', rating: 4.9, deals: 534, medal: '🥇' },
         { name: 'Maria', username: 'seller2', rating: 4.7, deals: 412, medal: '🥈' },
@@ -268,10 +295,8 @@ function loadRating() {
         { name: 'Anna', username: 'seller6', rating: 3.9, deals: 134, medal: '6️⃣' },
         { name: 'Pavel', username: 'seller7', rating: 3.7, deals: 98, medal: '7️⃣' },
     ];
-
-    const container = document.getElementById('topSellers');
+    
     let html = '';
-
     sellers.forEach(seller => {
         html += `
             <div class="glass-card seller-card">
@@ -293,7 +318,7 @@ function loadRating() {
             </div>
         `;
     });
-
+    
     container.innerHTML = html;
 }
 
@@ -302,30 +327,26 @@ function loadRating() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function createDeal() {
-    const title = document.getElementById('dealTitle').value.trim();
-    const description = document.getElementById('dealDescription').value.trim();
-    const priceStars = parseInt(document.getElementById('priceStars').value) || 0;
-    const priceRub = parseFloat(document.getElementById('priceRub').value) || 0;
-
-    // Валидация
+    const titleEl = document.getElementById('dealTitle');
+    const descEl = document.getElementById('dealDescription');
+    const starsEl = document.getElementById('priceStars');
+    const rubEl = document.getElementById('priceRub');
+    
+    const title = titleEl?.value?.trim() || '';
+    const description = descEl?.value?.trim() || '';
+    const priceStars = parseInt(starsEl?.value) || 0;
+    const priceRub = parseFloat(rubEl?.value) || 0;
+    
     if (!title) {
-        shakeElement(document.getElementById('dealTitle'));
-        tg.showAlert('❌ Введите название сделки');
+        try { tg.showAlert('❌ Введите название сделки'); } catch(e) { alert('❌ Введите название сделки'); }
         return;
     }
-
-    if (title.length < 3) {
-        shakeElement(document.getElementById('dealTitle'));
-        tg.showAlert('❌ Название должно быть не менее 3 символов');
-        return;
-    }
-
+    
     if (priceStars === 0 && priceRub === 0) {
-        tg.showAlert('❌ Укажите цену в звёздах или рублях');
+        try { tg.showAlert('❌ Укажите цену'); } catch(e) { alert('❌ Укажите цену'); }
         return;
     }
-
-    // Отправляем данные в бота
+    
     const dealData = {
         action: 'create_deal',
         title: title,
@@ -334,137 +355,71 @@ function createDeal() {
         priceRub: priceRub,
         photo: uploadedPhoto || ''
     };
-
+    
+    // Отправляем данные боту
     tg.sendData(JSON.stringify(dealData));
-
-    // Haptic feedback
-    if (tg.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('success');
+    
+    try {
+        tg.showPopup({
+            title: '✅ Сделка создана!',
+            message: `"${title}" отправлена!\nЦена: ${priceStars} ⭐ | ${priceRub} ₽`,
+            buttons: [{ type: 'ok' }]
+        });
+    } catch(e) {
+        alert(`✅ Сделка "${title}" создана!\nЦена: ${priceStars} ⭐ | ${priceRub} ₽`);
     }
-
-    // Показываем сообщение об успехе
-    tg.showPopup({
-        title: '✅ Сделка создана!',
-        message: `"${title}" отправлена на проверку.\n\nЦена: ${priceStars} ⭐ | ${priceRub} ₽`,
-        buttons: [{ type: 'ok' }]
-    });
-
+    
     // Очищаем форму
-    document.getElementById('dealTitle').value = '';
-    document.getElementById('dealDescription').value = '';
-    document.getElementById('priceStars').value = '';
-    document.getElementById('priceRub').value = '';
-
-    // Сбрасываем фото
+    if (titleEl) titleEl.value = '';
+    if (descEl) descEl.value = '';
+    if (starsEl) starsEl.value = '';
+    if (rubEl) rubEl.value = '';
     uploadedPhoto = null;
-    document.querySelector('.photo-placeholder').innerHTML = `
-        <span class="photo-icon">📸</span>
-        <p>Нажмите, чтобы загрузить фото</p>
-    `;
-
-    // Переключаем на экран сделок
-    setTimeout(() => {
-        navigateTo('dealsScreen');
-    }, 500);
-}
-
-function shakeElement(element) {
-    element.style.animation = 'shake 0.5s ease';
-    element.style.borderColor = '#FF3B30';
-    setTimeout(() => {
-        element.style.animation = '';
-        element.style.borderColor = '';
-    }, 500);
+    
+    const placeholder = document.querySelector('.photo-placeholder');
+    if (placeholder) {
+        placeholder.innerHTML = `<span class="photo-icon">📸</span><p>Нажмите, чтобы загрузить фото</p>`;
+    }
+    
+    setTimeout(() => navigateTo('dealsScreen'), 500);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ОНЛАЙН ПОЛЬЗОВАТЕЛИ
+// ОНЛАЙН
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function updateOnline() {
-    // Здесь должен быть запрос к боту
-    // Пока генерируем случайное число для демонстрации
     onlineCount = 40 + Math.floor(Math.random() * 20);
-
-    const onlineElement = document.getElementById('onlineCount');
-    const aboutOnlineElement = document.getElementById('aboutOnline');
-
-    if (onlineElement) {
-        animateNumber(onlineElement, onlineCount);
-    }
-    if (aboutOnlineElement) {
-        aboutOnlineElement.textContent = onlineCount;
-    }
-}
-
-function animateNumber(element, target) {
-    const current = parseInt(element.textContent) || 0;
-    const diff = target - current;
-    const steps = 20;
-    const increment = diff / steps;
-    let step = 0;
-
-    const animation = setInterval(() => {
-        step++;
-        element.textContent = Math.round(current + increment * step);
-        if (step >= steps) {
-            element.textContent = target;
-            clearInterval(animation);
-        }
-    }, 50);
+    
+    const onlineEl = document.getElementById('onlineCount');
+    const aboutEl = document.getElementById('aboutOnline');
+    
+    if (onlineEl) onlineEl.textContent = onlineCount;
+    if (aboutEl) aboutEl.textContent = onlineCount;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ПОИСК ПРОДАВЦА
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('searchSeller');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const sellerCards = document.querySelectorAll('.seller-card');
-
-            sellerCards.forEach(card => {
-                const name = card.querySelector('.seller-name')?.textContent.toLowerCase() || '';
-                const username = card.querySelector('.seller-username')?.textContent.toLowerCase() || '';
-
-                if (name.includes(query) || username.includes(query)) {
-                    card.style.display = '';
-                    card.style.animation = 'fadeIn 0.3s ease';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+const searchInput = document.getElementById('searchSeller');
+if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll('.seller-card').forEach(card => {
+            const text = card.textContent.toLowerCase();
+            card.style.display = text.includes(query) ? '' : 'none';
         });
-    }
-});
+    });
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ОБРАБОТКА ОТВЕТА ОТ БОТА
+// ГЛОБАЛЬНЫЕ ФУНКЦИИ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Слушаем ответ от бота (если используется CloudStorage или другие методы)
-tg.onEvent('viewportChanged', (event) => {
-    // Адаптация под высоту клавиатуры
-    if (event.isStateStable) {
-        document.body.style.paddingBottom = '0px';
-    }
-});
-
-// Обработка данных из WebApp
-tg.onEvent('mainButtonClicked', () => {
-    tg.sendData(JSON.stringify({ action: 'main_button_clicked' }));
-});
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ЭКСПОРТ ФУНКЦИЙ
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// Делаем функции доступными глобально
 window.createDeal = createDeal;
 window.loadProfile = loadProfile;
 window.loadRating = loadRating;
 window.navigateTo = navigateTo;
 
-console.log('🌋 Все функции загружены и готовы к работе');
+console.log('🌋 Garant Bot готов к работе');
